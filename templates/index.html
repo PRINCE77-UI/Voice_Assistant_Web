@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gen AI Innovations Voice Assistant</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef1f6;--panel:#fff;--ink:#14213d;--muted:#5b6785;--accent:#2f4bff;--me:#dfe6ff;--line:#d5dbe8}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1420;--panel:#171e2e;--ink:#e8ecf7;--muted:#98a3c0;--accent:#7c93ff;--me:#26325a;--line:#2a3350}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:17px/1.5 "Source Sans 3",system-ui,sans-serif;display:flex;justify-content:center}
+main{width:100%;max-width:720px;height:100%;display:flex;flex-direction:column;padding:20px 16px}
+h1{font:700 1.7rem/1.1 "Bricolage Grotesque",sans-serif;margin:0 0 4px}
+p.sub{margin:0 0 14px;color:var(--muted)}
+#log{flex:1;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.msg{max-width:85%;padding:9px 13px;border-radius:12px;white-space:pre-wrap}
+.bot{background:var(--bg);align-self:flex-start;border-top-left-radius:3px}
+.me{background:var(--me);align-self:flex-end;border-top-right-radius:3px}
+form{display:flex;gap:8px;margin-top:12px}
+input{flex:1;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:inherit}
+button{border:0;border-radius:10px;padding:0 16px;font:600 1rem "Source Sans 3",sans-serif;cursor:pointer;background:var(--accent);color:#fff;min-height:46px}
+button.mic{width:52px;padding:0;font-size:1.3rem}
+button.mic.on{background:#d62839;animation:pulse 1.1s infinite}
+button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);min-height:36px;padding:0 12px;font-size:.9rem}
+.bar{display:flex;gap:8px;margin-top:10px;align-items:center;color:var(--muted);font-size:.9rem}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+@keyframes pulse{50%{opacity:.55}}
+@media(prefers-reduced-motion:reduce){button.mic.on{animation:none}}
+</style>
+</head>
+<body>
+<main>
+  <h1>Voice Assistant</h1>
+  <p class="sub">By Gen AI Innovations. Type a command or tap the mic.</p>
+  <div id="log" aria-live="polite"></div>
+  <form id="f">
+    <button type="button" class="mic" id="mic" aria-label="Speak a command">🎤</button>
+    <input id="q" autocomplete="off" placeholder="Try: wikipedia Albert Einstein" aria-label="Command">
+    <button type="submit">Send</button>
+  </form>
+  <div class="bar">
+    <button class="ghost" id="mute" type="button">Voice replies: on</button>
+    <button class="ghost" id="help" type="button">Help</button>
+    <span id="status"></span>
+  </div>
+</main>
+<script>
+const log=document.getElementById('log'),q=document.getElementById('q'),
+      micBtn=document.getElementById('mic'),status=document.getElementById('status');
+let speakOn=true;
+
+function add(text,who){const d=document.createElement('div');d.className='msg '+who;d.textContent=text;log.appendChild(d);log.scrollTop=log.scrollHeight}
+function say(text){add(text,'bot');if(speakOn&&'speechSynthesis' in window){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.rate=1;speechSynthesis.speak(u)}}
+
+const SITES={youtube:'https://www.youtube.com',google:'https://www.google.com',github:'https://www.github.com',wikipedia:'https://www.wikipedia.org'};
+const HELP="Commands: 'wikipedia <topic>', 'open youtube/google/github/wikipedia', 'time', 'date', 'joke', 'note <text>', 'show notes', 'calculate 5 plus 3', 'help'.";
+
+async function api(url,opts){try{const r=await fetch(url,opts);return (await r.json()).text}catch(e){return 'Network error. Please check your connection.'}}
+
+function notes(){try{return JSON.parse(localStorage.getItem('notes')||'[]')}catch(e){return[]}}
+function saveNote(t){try{const n=notes();n.push(new Date().toLocaleString()+': '+t);localStorage.setItem('notes',JSON.stringify(n));return true}catch(e){return false}}
+
+async function handle(raw){
+  const c=raw.toLowerCase().trim(); if(!c) return;
+  add(raw,'me');
+  if(c.includes('wikipedia')){const t=c.replace('wikipedia','').trim();
+    if(!t) return say('What should I search on Wikipedia?');
+    say('Searching Wikipedia for '+t+'...');
+    return say(await api('/api/wiki?q='+encodeURIComponent(t)));}
+  if(c.startsWith('open')||c.includes(' open ')){const s=c.replace('open','').trim();
+    if(SITES[s]){say('Opening '+s+'...');return window.open(SITES[s],'_blank','noopener')}
+    return say("I don't have that site. Try YouTube, Google, GitHub or Wikipedia.");}
+  if(c.includes('show notes')){const n=notes();return say(n.length?n.join('\n'):'You have no notes yet.')}
+  if(c.includes('time')) return say('The current time is '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'.');
+  if(c.includes('date')) return say('Today is '+new Date().toLocaleDateString(undefined,{weekday:'long',year:'numeric',month:'long',day:'numeric'})+'.');
+  if(c.includes('joke')) return say(await api('/api/joke'));
+  if(c.includes('note')){const t=c.replace('note','').trim();
+    if(!t) return say("What should I note down? Say 'note' followed by your text.");
+    return say(saveNote(t)?'Note saved: '+t:'I could not save the note in this browser.');}
+  if(c.includes('calculate')){const e=c.replace('calculate','').trim();
+    if(!e) return say('What should I calculate? For example: calculate 5 plus 3.');
+    return say(await api('/api/calc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expr:e})}));}
+  if(c.includes('help')) return say(HELP);
+  if(/\b(exit|quit|bye|goodbye|stop)\b/.test(c)) return say('Goodbye! Have a great day.');
+  say("Sorry, I didn't understand '"+raw+"'. Say 'help' to see commands.");
+}
+
+document.getElementById('f').addEventListener('submit',e=>{e.preventDefault();const v=q.value;q.value='';handle(v)});
+document.getElementById('help').onclick=()=>say(HELP);
+document.getElementById('mute').onclick=e=>{speakOn=!speakOn;if(!speakOn)speechSynthesis.cancel();e.target.textContent='Voice replies: '+(speakOn?'on':'off')};
+
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(!SR){micBtn.disabled=true;micBtn.title='Voice input needs Chrome, Edge or Safari';status.textContent='Voice input is not supported in this browser. Use typing.'}
+else{
+  const r=new SR();r.lang='en-US';r.interimResults=false;
+  r.onstart=()=>{micBtn.classList.add('on');status.textContent='Listening...'};
+  r.onend=()=>{micBtn.classList.remove('on');status.textContent=''};
+  r.onresult=e=>handle(e.results[0][0].transcript);
+  r.onerror=e=>say(e.error==='not-allowed'?'Microphone access is blocked. Allow it in your browser settings.':e.error==='no-speech'?'No speech detected. Please try again.':'Voice error: '+e.error);
+  micBtn.onclick=()=>{try{r.start()}catch(e){}};
+}
+
+const h=new Date().getHours();
+say((h<12?'Good morning!':h<18?'Good afternoon!':'Good evening!')+' I am your Voice Assistant, powered by Gen AI Innovations. Say or type help to see what I can do.');
+</script>
+</body>
+</html>
